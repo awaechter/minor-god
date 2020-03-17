@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>Minor God</title>
+
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+		<style>
+			html, body {
+				width: 100%;
+				height: 100%;
+			}
+			body {
+				background-color: #ffffff;
+				margin: 0;
+				overflow: hidden;
+				font-family: arial;
+			}
+			#blocker {
+				position: absolute;
+				width: 100%;
+				height: 100%;
+				background-color: rgba(0,0,0,0.5);
+			}
+			#instructions {
+				width: 100%;
+				height: 100%;
+				display: -webkit-box;
+				display: -moz-box;
+				display: box;
+				-webkit-box-orient: horizontal;
+				-moz-box-orient: horizontal;
+				box-orient: horizontal;
+				-webkit-box-pack: center;
+				-moz-box-pack: center;
+				box-pack: center;
+				-webkit-box-align: center;
+				-moz-box-align: center;
+				box-align: center;
+				color: #ffffff;
+				text-align: center;
+				cursor: pointer;
+			}
+		</style>
+	</head>
+	<body>
+		<script src="js/three.min.js"></script>
+		<script src="js/stats.min.js"></script>
+		<script src="js/PointerLockControls.js"></script>
+		<script src="js/dat.gui.min.js"></script>
+		<div id="blocker" style="display: block;">
+
+			<div id="instructions">
+				<span style="font-size:40px">Click to play</span>
+				<br>
+				MOUSE = Look around
+				<br>
+				WASD = Fly around
+				<br>
+				SPACE = Smite the land
+				<br> <br>
+				You're a minor god who
+				<br>
+				can only make five
+				<br>
+				craters at a time
+			</div>
+
+		</div>
+		<script id="terrain_vshader" type="x-shader/x-vertex">
+			attribute float vertices;
+			uniform vec2 hit1;
+			uniform vec2 hit2;
+			uniform vec2 hit3;
+			uniform vec2 hit4;
+			uniform vec2 hit5;
+			varying vec3 vUv;
+			varying vec3 norm;
+			varying float craterdepth;
+
+//
+// GLSL textureless classic 3D noise "cnoise",
+// with an RSL-style periodic variant "pnoise".
+// Author:  Stefan Gustavson (stefan.gustavson@liu.se)
+// Version: 2011-10-11
+//
+// Many thanks to Ian McEwan of Ashima Arts for the
+// ideas for permutation and gradient selection.
+//
+// Copyright (c) 2011 Stefan Gustavson. All rights reserved.
+// Distributed under the MIT license. See LICENSE file.
+// https://github.com/stegu/webgl-noise
+//
+
+vec3 mod289(vec3 x)
+{
+  return x - floor(x * (1.0 / 289.0)) * 289.0;
+}
+
+vec4 mod289(vec4 x)
+{
+  return x - floor(x * (1.0 / 289.0)) * 289.0;
+}
+
+vec4 permute(vec4 x)
+{
+  return mod289(((x*34.0)+1.0)*x);
+}
+
+vec4 taylorInvSqrt(vec4 r)
+{
+  return 1.79284291400159 - 0.85373472095314 * r;
+}
+
+vec3 fade(vec3 t) {
+  return t*t*t*(t*(t*6.0-15.0)+10.0);
+}
+
+// Classic Perlin noise
+float cnoise(vec3 P)
+{
+  vec3 Pi0 = floor(P); // Integer part for indexing
+  vec3 Pi1 = Pi0 + vec3(1.0); // Integer part + 1
+  Pi0 = mod289(Pi0);
+  Pi1 = mod289(Pi1);
+  vec3 Pf0 = fract(P); // Fractional part for interpolation
+  vec3 Pf1 = Pf0 - vec3(1.0); // Fractional part - 1.0
+  vec4 ix = vec4(Pi0.x, Pi1.x, Pi0.x, Pi1.x);
+  vec4 iy = vec4(Pi0.yy, Pi1.yy);
+  vec4 iz0 = Pi0.zzzz;
+  vec4 iz1 = Pi1.zzzz;
+
+  vec4 ixy = permute(permute(ix) + iy);
+  vec4 ixy0 = permute(ixy + iz0);
+  vec4 ixy1 = permute(ixy + iz1);
+
+  vec4 gx0 = ixy0 * (1.0 / 7.0);
+  vec4 gy0 = fract(floor(gx0) * (1.0 / 7.0)) - 0.5;
+  gx0 = fract(gx0);
+  vec4 gz0 = vec4(0.5) - abs(gx0) - abs(gy0);
+  vec4 sz0 = step(gz0, vec4(0.0));
+  gx0 -= sz0 * (step(0.0, gx0) - 0.5);
+  gy0 -= sz0 * (step(0.0, gy0) - 0.5);
+
+  vec4 gx1 = ixy1 * (1.0 / 7.0);
+  vec4 gy1 = fract(floor(gx1) * (1.0 / 7.0)) - 0.5;
+  gx1 = fract(gx1);
+  vec4 gz1 = vec4(0.5) - abs(gx1) - abs(gy1);
+  vec4 sz1 = step(gz1, vec4(0.0));
+  gx1 -= sz1 * (step(0.0, gx1) - 0.5);
+  gy1 -= sz1 * (step(0.0, gy1) - 0.5);
+
+  vec3 g000 = vec3(gx0.x,gy0.x,gz0.x);
+  vec3 g100 = vec3(gx0.y,gy0.y,gz0.y);
+  vec3 g010 = vec3(gx0.z,gy0.z,gz0.z);
+  vec3 g110 = vec3(gx0.w,gy0.w,gz0.w);
+  vec3 g001 = vec3(gx1.x,gy1.x,gz1.x);
+  vec3 g101 = vec3(gx1.y,gy1.y,gz1.y);
+  vec3 g011 = vec3(gx1.z,gy1.z,gz1.z);
+  vec3 g111 = vec3(gx1.w,gy1.w,gz1.w);
+
+  vec4 norm0 = taylorInvSqrt(vec4(dot(g000, g000), dot(g010, g010), dot(g100, g100), dot(g110, g110)));
+  g000 *= norm0.x;
+  g010 *= norm0.y;
+  g100 *= norm0.z;
+  g110 *= norm0.w;
+  vec4 norm1 = taylorInvSqrt(vec4(dot(g001, g001), dot(g011, g011), dot(g101, g101), dot(g111, g111)));
+  g001 *= norm1.x;
+  g011 *= norm1.y;
+  g101 *= norm1.z;
+  g111 *= norm1.w;
+
+  float n000 = dot(g000, Pf0);
+  float n100 = dot(g100, vec3(Pf1.x, Pf0.yz));
+  float n010 = dot(g010, vec3(Pf0.x, Pf1.y, Pf0.z));
+  float n110 = dot(g110, vec3(Pf1.xy, Pf0.z));
+  float n001 = dot(g001, vec3(Pf0.xy, Pf1.z));
+  float n101 = dot(g101, vec3(Pf1.x, Pf0.y, Pf1.z));
+  float n011 = dot(g011, vec3(Pf0.x, Pf1.yz));
+  float n111 = dot(g111, Pf1);
+
+  vec3 fade_xyz = fade(Pf0);
+  vec4 n_z = mix(vec4(n000, n100, n010, n110), vec4(n001, n101, n011, n111), fade_xyz.z);
+  vec2 n_yz = mix(n_z.xy, n_z.zw, fade_xyz.y);
+  float n_xyz = mix(n_yz.x, n_yz.y, fade_xyz.x);
+  return 2.2 * n_xyz;
+}
+
+// Classic Perlin noise, periodic variant
+float pnoise(vec3 P, vec3 rep)
+{
+  vec3 Pi0 = mod(floor(P), rep); // Integer part, modulo period
+  vec3 Pi1 = mod(Pi0 + vec3(1.0), rep); // Integer part + 1, mod period
+  Pi0 = mod289(Pi0);
+  Pi1 = mod289(Pi1);
+  vec3 Pf0 = fract(P); // Fractional part for interpolation
+  vec3 Pf1 = Pf0 - vec3(1.0); // Fractional part - 1.0
+  vec4 ix = vec4(Pi0.x, Pi1.x, Pi0.x, Pi1.x);
+  vec4 iy = vec4(Pi0.yy, Pi1.yy);
+  vec4 iz0 = Pi0.zzzz;
+  vec4 iz1 = Pi1.zzzz;
+
+  vec4 ixy = permute(permute(ix) + iy);
+  vec4 ixy0 = permute(ixy + iz0);
+  vec4 ixy1 = permute(ixy + iz1);
+
+  vec4 gx0 = ixy0 * (1.0 / 7.0);
+  vec4 gy0 = fract(floor(gx0) * (1.0 / 7.0)) - 0.5;
+  gx0 = fract(gx0);
+  vec4 gz0 = vec4(0.5) - abs(gx0) - abs(gy0);
+  vec4 sz0 = step(gz0, vec4(0.0));
+  gx0 -= sz0 * (step(0.0, gx0) - 0.5);
+  gy0 -= sz0 * (step(0.0, gy0) - 0.5);
+
+  vec4 gx1 = ixy1 * (1.0 / 7.0);
+  vec4 gy1 = fract(floor(gx1) * (1.0 / 7.0)) - 0.5;
+  gx1 = fract(gx1);
+  vec4 gz1 = vec4(0.5) - abs(gx1) - abs(gy1);
+  vec4 sz1 = step(gz1, vec4(0.0));
+  gx1 -= sz1 * (step(0.0, gx1) - 0.5);
+  gy1 -= sz1 * (step(0.0, gy1) - 0.5);
+
+  vec3 g000 = vec3(gx0.x,gy0.x,gz0.x);
+  vec3 g100 = vec3(gx0.y,gy0.y,gz0.y);
+  vec3 g010 = vec3(gx0.z,gy0.z,gz0.z);
+  vec3 g110 = vec3(gx0.w,gy0.w,gz0.w);
+  vec3 g001 = vec3(gx1.x,gy1.x,gz1.x);
+  vec3 g101 = vec3(gx1.y,gy1.y,gz1.y);
+  vec3 g011 = vec3(gx1.z,gy1.z,gz1.z);
+  vec3 g111 = vec3(gx1.w,gy1.w,gz1.w);
+
+  vec4 norm0 = taylorInvSqrt(vec4(dot(g000, g000), dot(g010, g010), dot(g100, g100), dot(g110, g110)));
+  g000 *= norm0.x;
+  g010 *= norm0.y;
+  g100 *= norm0.z;
+  g110 *= norm0.w;
+  vec4 norm1 = taylorInvSqrt(vec4(dot(g001, g001), dot(g011, g011), dot(g101, g101), dot(g111, g111)));
+  g001 *= norm1.x;
+  g011 *= norm1.y;
+  g101 *= norm1.z;
+  g111 *= norm1.w;
+
+  float n000 = dot(g000, Pf0);
+  float n100 = dot(g100, vec3(Pf1.x, Pf0.yz));
+  float n010 = dot(g010, vec3(Pf0.x, Pf1.y, Pf0.z));
+  float n110 = dot(g110, vec3(Pf1.xy, Pf0.z));
+  float n001 = dot(g001, vec3(Pf0.xy, Pf1.z));
+  float n101 = dot(g101, vec3(Pf1.x, Pf0.y, Pf1.z));
+  float n011 = dot(g011, vec3(Pf0.x, Pf1.yz));
+  float n111 = dot(g111, Pf1);
+
+  vec3 fade_xyz = fade(Pf0);
+  vec4 n_z = mix(vec4(n000, n100, n010, n110), vec4(n001, n101, n011, n111), fade_xyz.z);
+  vec2 n_yz = mix(n_z.xy, n_z.zw, fade_xyz.y);
+  float n_xyz = mix(n_yz.x, n_yz.y, fade_xyz.x);
+  return 2.2 * n_xyz;
+}
+
+float turbulence( vec3 p ) {
+
+  float w = 100.0;
+  float t = -.5;
+
+  for (float f = 1.0 ; f <= 10.0 ; f++ ){
+    float power = pow( 2.0, f );
+    t += abs( pnoise( vec3( power * p ), vec3( 10.0, 10.0, 10.0 ) ) / power );
+  }
+
+  return t;
+
+}
+
+			float rand(vec2 co){
+                return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
+            }
+
+			bool close(vec2 p, vec2 hit) {
+				if ( (pow(p.x - hit.x, 2.0) + pow(p.y - hit.y, 2.0)) < .0003 ) { return true; }
+				else {return false;}
+			}
+
+      		void main() {
+			    float noise;
+        		float height = position.z;
+        		craterdepth = 0.0;
+        		vec2 p = position.xy;
+        		p.x /= 2000.0;
+        		p.x += 0.5;
+        		p.y /= 2000.0;
+        		p.y += 0.5;
+        		height += -64.0
+        				+ (cos((p.x - p.y) * 3.14) * 64.0)
+        		        + (cos((p.x + p.y) * 3.14 - 3.14) * 64.0);
+
+
+
+  // get a turbulent 3d noise using the normal, normal to high freq
+  noise = 10.0 *  -.10 * turbulence( .5 * normal );
+  // get a 3d noise using the position, low frequency
+  float b = 5.0 * pnoise( 0.05 * position, vec3( 1000.0 ) );
+  // compose both noises
+  float displacement =  10. * noise + b;
+                height += displacement *2.0;
+
+                if (height < 72.0 && height > 30.0) {
+  	                height += (sin(floor(p.x * rand(p) * 256.0) * 256.0))
+        		            + (sin(floor(p.y * rand(p) * 256.0) * 256.0));
+                }
+
+	            if (close(p, hit1)) {
+		            float depth = max(-2.0, (32.0 - ((pow(p.x - hit1.x, 2.0) + pow(p.y - hit1.y, 2.0)) * 125000.0) + rand(p) * 3.0));
+		            craterdepth += depth;
+		            height -= depth;
+	            }
+				if (close(p, hit2)) {
+					float depth = max(-2.0, (32.0 - ((pow(p.x - hit2.x, 2.0) + pow(p.y - hit2.y, 2.0)) * 125000.0) + rand(p) * 3.0));
+					craterdepth += depth;
+					height -= depth;
+				}
+				if (close(p, hit3)) {
+					float depth = max(-2.0, (32.0 - ((pow(p.x - hit3.x, 2.0) + pow(p.y - hit3.y, 2.0)) * 125000.0) + rand(p) * 3.0));
+					craterdepth += depth;
+					height -= depth;
+				}
+				if (close(p, hit4)) {
+					float depth = max(-2.0, (32.0 - ((pow(p.x - hit4.x, 2.0) + pow(p.y - hit4.y, 2.0)) * 125000.0) + rand(p) * 3.0));
+					craterdepth += depth;
+					height -= depth;
+				}
+				if (close(p, hit5)) {
+					float depth = max(-2.0, (32.0 - ((pow(p.x - hit5.x, 2.0) + pow(p.y - hit5.y, 2.0)) * 125000.0) + rand(p) * 3.0));
+					craterdepth += depth;
+					height -= depth;
+				}
+
+
+        		vec4 mvPosition = modelViewMatrix * vec4(position.xy, height, 1.0);
+        		norm = -mvPosition.xyz;
+        		vUv = vec3(position.xy, height);
+				gl_Position = projectionMatrix * mvPosition;
+      		}
+		</script>
+
+		<script id="terrain_fshader" type="x-shader/x-fragment">
+
+			#extension GL_OES_standard_derivatives : enable
+
+			uniform vec2 hit1;
+			uniform vec2 hit2;
+			uniform vec2 hit3;
+			uniform vec2 hit4;
+			uniform vec2 hit5;
+			uniform float dark;
+			varying vec3 vUv;
+			varying vec3 norm;
+			varying float craterdepth;
+
+			void main( void ) {
+				vec3 normal = normalize(cross(dFdx(norm), dFdy(norm)));
+				vec3 position = vUv;
+
+				gl_FragColor = mix(
+				        // grass to snow at the mountains, to sand at the beaches
+						mix(
+								vec4(0.3, 0.6, 0.3, 1.0),
+								vec4(1.0, 1.0, 1.0, 1.0),
+								max( 0.0, min( 1.0, (vUv.z - 73.0) / 4.0 ) )
+						),
+						vec4(0.9, 0.9, 0.6, 1.0),
+						max( 0.0, min(1.0, (10.0 - vUv.z) ) )
+				);
+				// dark green trees, gradient to mountain
+				if (vUv.z > 50.0 && vUv.z < 75.0) {
+					gl_FragColor = mix(
+							gl_FragColor,
+							vec4(0.2, 0.4, 0.2, 1.0),
+							max( 0.0, min( 1.0, (72.0 - vUv.z) ) )
+					);
+				}
+				// dark green trees, gradient to plains
+				if (vUv.z > 30.0 && vUv.z < 55.0) {
+					gl_FragColor = mix(
+							gl_FragColor,
+							vec4(0.2, 0.4, 0.2, 1.0),
+							max( 0.0, min( 1.0, (vUv.z - 30.0) ) )
+					);
+				}
+				// crater dirt colours
+				if (craterdepth > 0.0) {
+					gl_FragColor = vec4(0.3, 0.3, 0.2, 1.0);
+					if (craterdepth > 15.0) {
+						gl_FragColor = vec4(0.2, 0.2, 0.1, 1.0);
+					}
+				}
+				gl_FragColor.xyz *= (1.0 - normal.x / (2.0 + dark));
+				gl_FragColor.xyz /= (dark);
+			}
+		</script>
+
+		<script>
+			var camera, scene, renderer;
+			var geometry, material, mesh;
+			var terrain, sea;
+			var terrain_uniforms;
+			var god;
+			var hand, sHand;
+			var crosshair;
+			var lightning;
+			var hitcount = 0;
+			var controls;
+			var raycaster;
+			var moveForward, moveLeft, moveRight, moveBackward;
+			var canSmite = true;
+			var flex, unFlex, smite;
+			var smiteCount = 0;
+			var params, gui;
+
+			//pointer lock controls taken and adapted from
+		    // https://threejs.org/examples/misc_controls_pointerlock.html
+		    // and https://codepen.io/tembling/pen/reZjEw
+			var controlsEnabled = false;
+			var blocker = document.getElementById( 'blocker' );
+			var instructions = document.getElementById( 'instructions' );
+			var havePointerLock = 'pointerLockElement' in document || 'mozPointerLockElement' in document || 'webkitPointerLockElement' in document;
+			if ( havePointerLock ) {
+				var element = document.body;
+				var pointerlockchange = function ( event ) {
+					if ( document.pointerLockElement === element || document.mozPointerLockElement === element || document.webkitPointerLockElement === element ) {
+						controlsEnabled = true;
+						controls.enabled = true;
+						blocker.style.display = 'none';
+					} else {
+						controls.enabled = false;
+						blocker.style.display = '-webkit-box';
+						blocker.style.display = '-moz-box';
+						blocker.style.display = 'box';
+						instructions.style.display = '';
+					}
+				};
+				var pointerlockerror = function ( event ) {
+					instructions.style.display = '';
+				};
+				// Hook pointer lock state change events
+				document.addEventListener( 'pointerlockchange', pointerlockchange, false );
+				document.addEventListener( 'mozpointerlockchange', pointerlockchange, false );
+				document.addEventListener( 'webkitpointerlockchange', pointerlockchange, false );
+				document.addEventListener( 'pointerlockerror', pointerlockerror, false );
+				document.addEventListener( 'mozpointerlockerror', pointerlockerror, false );
+				document.addEventListener( 'webkitpointerlockerror', pointerlockerror, false );
+				instructions.addEventListener( 'click', function ( event ) {
+					instructions.style.display = 'none';
+					// Ask the browser to lock the pointer
+					element.requestPointerLock = element.requestPointerLock || element.mozRequestPointerLock || element.webkitRequestPointerLock;
+					if ( /Firefox/i.test( navigator.userAgent ) ) {
+						var fullscreenchange = function ( event ) {
+							if ( document.fullscreenElement === element || document.mozFullscreenElement === element || document.mozFullScreenElement === element ) {
+								document.removeEventListener( 'fullscreenchange', fullscreenchange );
+								document.removeEventListener( 'mozfullscreenchange', fullscreenchange );
+								element.requestPointerLock();
+							}
+						};
+						document.addEventListener( 'fullscreenchange', fullscreenchange, false );
+						document.addEventListener( 'mozfullscreenchange', fullscreenchange, false );
+						element.requestFullscreen = element.requestFullscreen || element.mozRequestFullscreen || element.mozRequestFullScreen || element.webkitRequestFullscreen;
+						element.requestFullscreen();
+					} else {
+						element.requestPointerLock();
+					}
+				}, false );
+			} else {
+				instructions.innerHTML = 'Your browser doesn\'t seem to support Pointer Lock API';
+			}
+
+
+			init();
+			animate();
+
+			function init() {
+
+				scene = new THREE.Scene();
+				scene.background = new THREE.Color(0x3366FF);
+
+				camera = new THREE.PerspectiveCamera( 75, window.innerWidth/window.innerHeight, 0.1, 5000 );
+				camera.position.y = 100;
+				camera.lookAt(new THREE.Vector3(0, 0, -200));
+
+
+				// environment lights
+				var sunshine = new THREE.DirectionalLight(0xffffff);
+				sunshine.position.set(1,1,-1);
+				scene.add(sunshine);
+				var sunglow = new THREE.AmbientLight(0x121210);
+				scene.add(sunglow);
+
+				// terrain
+				terrain_uniforms = {
+					"hit1": { type: "v2", value: new THREE.Vector2(5000.0, 5000.0)},
+					"hit2": { type: "v2", value: new THREE.Vector2(5000.0, 5000.0)},
+					"hit3": { type: "v2", value: new THREE.Vector2(5000.0, 5000.0)},
+					"hit4": { type: "v2", value: new THREE.Vector2(5000.0, 5000.0)},
+					"hit5": { type: "v2", value: new THREE.Vector2(5000.0, 5000.0)},
+					"dark": { type: "fv", value: 1.0 }
+				};
+				geometry = new THREE.PlaneBufferGeometry(2000, 2000, 1000, 1000);
+				material = new THREE.ShaderMaterial({
+					uniforms: terrain_uniforms,
+					vertexShader: document.getElementById("terrain_vshader").textContent,
+					fragmentShader: document.getElementById("terrain_fshader").textContent
+				});
+				terrain = new THREE.Mesh(geometry, material);
+				terrain.rotation.x = -Math.PI / 2;
+				scene.add(terrain);
+
+
+				// sea level
+				geometry = new THREE.PlaneBufferGeometry(10000, 10000);
+				material = new THREE.MeshPhongMaterial({ color:0x0000FF} );
+				sea = new THREE.Mesh(geometry, material);
+				sea.rotation.x = -Math.PI / 2;
+				scene.add(sea);
+
+				god = new THREE.Group();
+
+				// normal hand
+				hand = new THREE.Group();
+				geometry = new THREE.BoxBufferGeometry(4.0, 4.0, 1.0);
+				material = new THREE.MeshPhongMaterial({color:0x888844});
+				mesh = new THREE.Mesh(geometry, material); //the palm
+				mesh.position.x = .5;
+				hand.add(mesh);
+				geometry = new THREE.BoxBufferGeometry(1.0, 3.0, 1.0);
+				mesh = new THREE.Mesh(geometry, material); //the thumb
+				mesh.rotation.z = Math.PI / 4;
+				mesh.rotation.y = -Math.PI / 4;
+				mesh.position.x = -2;
+				mesh.position.y = -.5;
+				mesh.position.z = -.5;
+				hand.add(mesh);
+				mesh = new THREE.Mesh(geometry, material); //the fingers
+				mesh.rotation.y = Math.PI / 4;
+				mesh.rotation.z = .1;
+				mesh.rotation.x = -Math.PI / 4;
+				mesh.position.x = -1;
+				mesh.position.y = 2.5;
+				mesh.position.z = -1;
+				hand.add(mesh);
+				mesh = new THREE.Mesh(geometry, material);
+				mesh.rotation.y = Math.PI / 4;
+				mesh.rotation.x = -Math.PI / 4;
+				mesh.position.y = 2.5;
+				mesh.position.z = -1;
+				hand.add(mesh);
+				mesh = new THREE.Mesh(geometry, material);
+				mesh.rotation.y = Math.PI / 4;
+				mesh.rotation.z = -.1;
+				mesh.rotation.x = -Math.PI / 4;
+				mesh.position.x = 1;
+				mesh.position.y = 2.5;
+				mesh.position.z = -1;
+				hand.add(mesh);
+				mesh = new THREE.Mesh(geometry, material);
+				mesh.rotation.y = Math.PI / 4;
+				mesh.rotation.z = -.2;
+				mesh.rotation.x = -Math.PI / 4;
+				mesh.position.x = 2;
+				mesh.position.y = 2.5;
+				mesh.position.z = -1;
+				hand.add(mesh);
+				hand.rotation.x = -.4;
+				hand.rotation.y = .3;
+				hand.position.x = 3.0;
+				hand.position.y -= 4;
+
+				// smiting hand
+				sHand = new THREE.Group();
+				geometry = new THREE.BoxBufferGeometry(4.0, 4.0, 1.0);
+				mesh = new THREE.Mesh(geometry, material); // the palm
+				mesh.position.x = .5;
+				sHand.add(mesh);
+				geometry = new THREE.BoxBufferGeometry(1.0, 3.0, 1.0);
+				mesh = new THREE.Mesh(geometry, material); // thumb
+				mesh.rotation.z = Math.PI / 4;
+				mesh.rotation.y = -Math.PI / 3;
+				mesh.position.x = -2;
+				mesh.position.y = -.5;
+				mesh.position.z = -.5;
+				sHand.add(mesh);
+				mesh = new THREE.Mesh(geometry, material); // forefinger pointing
+				mesh.rotation.y = Math.PI / 4;
+				mesh.rotation.z = .1;
+				mesh.position.x = -1;
+				mesh.position.y = 3.5;
+				sHand.add(mesh);
+				mesh = new THREE.Mesh(geometry, material); // other fingers
+				mesh.rotation.y = Math.PI / 4;
+				mesh.rotation.x = -Math.PI / 2;
+				mesh.position.y = 2;
+				mesh.position.z = -1;
+				sHand.add(mesh);
+				mesh = new THREE.Mesh(geometry, material);
+				mesh.rotation.y = Math.PI / 4;
+				mesh.rotation.z = -.1;
+				mesh.rotation.x = -Math.PI / 2;
+				mesh.position.x = 1;
+				mesh.position.y = 2;
+				mesh.position.z = -1;
+				sHand.add(mesh);
+				mesh = new THREE.Mesh(geometry, material);
+				mesh.rotation.y = Math.PI / 4;
+				mesh.rotation.z = -.2;
+				mesh.rotation.x = -Math.PI / 2;
+				mesh.position.x = 2;
+				mesh.position.y = 2;
+				mesh.position.z = -1;
+				sHand.add(mesh);
+				sHand.rotation.x = -.8;
+				sHand.rotation.y = .3;
+
+				sHand.position.x = 3.0;
+				sHand.position.y -= 4;
+				sHand.visible =false;
+
+                //both hands occupy the same space but
+                // only one will be visible at a time
+				god.add(hand);
+				god.add(sHand);
+
+				//crosshair
+				geometry = new THREE.RingGeometry(.1, .12, 30, 1);
+				material = new THREE.MeshBasicMaterial({color:0xFF0000});
+				crosshair = new THREE.Mesh(geometry, material);
+				crosshair.position.y += 1;
+				god.add(crosshair);
+				god.position.z -= 10.0;
+
+				//lightning bolt
+				lightning = new THREE.Group();
+				geometry = new THREE.Geometry();
+				geometry.vertices.push(
+                    new THREE.Vector3(0, -8, 0),
+                    new THREE.Vector3(2, -4, 0),
+                    new THREE.Vector3(0, -4, 0),
+                    new THREE.Vector3(2, 1, 0),
+                    new THREE.Vector3(0, 1, 0),
+                    new THREE.Vector3(2, 7, 0),
+                    new THREE.Vector3(0, 7, 0),
+                    new THREE.Vector3(-2, 0, 0),
+                    new THREE.Vector3(0, 0, 0),
+                    new THREE.Vector3(-1, -5, 0),
+                    new THREE.Vector3(1, -5, 0)
+				);
+				geometry.faces.push(
+				    new THREE.Face3(0, 1, 10),
+				    new THREE.Face3(1, 2, 10),
+				    new THREE.Face3(2, 9, 10),
+				    new THREE.Face3(2, 8, 9),
+				    new THREE.Face3(2, 3, 8),
+				    new THREE.Face3(3, 4, 8),
+				    new THREE.Face3(4, 7, 8),
+				    new THREE.Face3(4, 6, 7),
+				    new THREE.Face3(4, 5, 6)
+				);
+				geometry.computeFaceNormals();
+				material = new THREE.MeshPhongMaterial({emissive:0xFFFFAA, side:THREE.DoubleSide});
+				mesh = new THREE.Mesh(geometry, material);
+				lightning.add(mesh);
+				var flash = new THREE.PointLight(0xFFFF00, 2);
+				flash.position.set(0, -8, 0);
+				lightning.add(flash);
+				lightning.position.z -= 8;
+				lightning.rotation.x += Math.PI * 2 / 3;
+
+				god.add(lightning);
+				lightning.visible = false;
+
+				camera.add(god);
+				scene.add(camera);
+
+                //gui to change sea level
+				gui = new dat.GUI();
+			    params = {
+			    	seaLevel: 0
+			    };
+				gui.add(params, 'seaLevel', -50, 75);
+				gui.open();
+
+
+				raycaster = new THREE.Raycaster();
+
+				//controls, largely taken from the same source as noted above
+				controls = new THREE.PointerLockControls( camera, document.body );
+				var blocker = document.getElementById( 'blocker' );
+				var instructions = document.getElementById( 'instructions' );
+
+				var onKeyDown = function ( event ) {
+					switch ( event.keyCode ) {
+						case 38: // up
+						case 87: // w
+							moveForward = true;
+							break;
+						case 37: // left
+						case 65: // a
+							moveLeft = true;
+							break;
+						case 40: // down
+						case 83: // s
+							moveBackward = true;
+							break;
+						case 39: // right
+						case 68: // d
+							moveRight = true;
+							break;
+						case 32: // space
+							if (canSmite) {
+								flex = true;
+							}
+							break;
+					}
+				};
+
+				var onKeyUp = function ( event ) {
+					switch ( event.keyCode ) {
+						case 38: // up
+						case 87: // w
+							moveForward = false;
+							break;
+						case 37: // left
+						case 65: // a
+							moveLeft = false;
+							break;
+						case 40: // down
+						case 83: // s
+							moveBackward = false;
+							break;
+						case 39: // right
+						case 68: // d
+							moveRight = false;
+							break;
+						case 32: //space
+							if (canSmite) {
+								canSmite = false;
+								smite = true;
+							}
+							break;
+
+					}
+				};
+
+
+				document.addEventListener( 'keydown', onKeyDown, false );
+				document.addEventListener( 'keyup', onKeyUp, false );
+
+				instructions.addEventListener( 'click', function () { controls.lock(); }, false );
+				controls.addEventListener( 'lock', function () { instructions.style.display = 'none'; blocker.style.display = 'none'; } );
+				controls.addEventListener( 'unlock', function () { blocker.style.display = 'block'; instructions.style.display = ''; } );
+				scene.add(controls.getObject() );
+
+				renderer = new THREE.WebGLRenderer( { antialias: true } );
+				renderer.setPixelRatio( window.devicePixelRatio );
+				renderer.setSize( window.innerWidth, window.innerHeight );
+				document.body.appendChild( renderer.domElement );
+
+				window.addEventListener( 'resize', onWindowResize, false );
+			}
+
+
+			function onWindowResize() {
+				camera.aspect = window.innerWidth / window.innerHeight;
+				camera.updateProjectionMatrix();
+				renderer.setSize( window.innerWidth, window.innerHeight );
+			}
+
+
+			function animate() {
+				sea.position.y = params.seaLevel;
+				requestAnimationFrame( animate );
+
+
+				if (moveLeft) {
+					controls.moveRight(-4.0);
+				}
+				else if (moveRight) {
+					controls.moveRight(4.0);
+				}
+				if (moveForward) {
+					controls.moveForward(4.0);
+				}
+				else if (moveBackward) {
+					controls.moveForward(-4.0);
+				}
+
+				if (flex) {
+					sHand.visible = true;
+					hand.visible = false;
+					flex = false;
+				}
+				else if (unFlex) {
+					hand.visible = true;
+					sHand.visible = false;
+					unFlex = false;
+				}
+				if (smite) {
+					smite = false;
+					scene.background = new THREE.Color(0x333377);
+					crosshair.visible = false;
+					terrain_uniforms.dark.value = 3.0;
+                    smiteCount = 20;
+				}
+				if (smiteCount > 0) {
+					smiteCount--;
+					if (smiteCount % 2 == 1) {
+						lightning.visible = true;
+						lightning.rotation.y += Math.PI * 1.77;
+					}
+					else {
+						lightning.visible = false;
+						if (smiteCount == 6) {
+							raycaster.setFromCamera(new THREE.Vector2(0,0), camera);
+							var hit = raycaster.intersectObject(terrain);
+							if (hit.length > 0) {
+								hitcount = (hitcount) % 5;
+								switch (hitcount + 1) {
+									case 1:
+										terrain_uniforms.hit1.value=hit[0].uv;
+										break;
+									case 2:
+										terrain_uniforms.hit2.value=hit[0].uv;
+										break;
+									case 3:
+										terrain_uniforms.hit3.value=hit[0].uv;
+										break;
+									case 4:
+										terrain_uniforms.hit4.value=hit[0].uv;
+										break;
+									case 5:
+										terrain_uniforms.hit5.value=hit[0].uv;
+										break;
+								}
+								hitcount++;
+							}
+						}
+						else if (smiteCount == 0) {
+							scene.background = new THREE.Color(0x3366FF);
+							unFlex = true;
+							canSmite = true;
+							crosshair.visible = true;
+							terrain_uniforms.dark.value = 1.0;
+						}
+					}
+				}
+
+				renderer.render(scene, camera);
+			}
+		</script>
+	</body>
+</html>
